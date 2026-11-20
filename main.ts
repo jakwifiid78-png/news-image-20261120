@@ -1,11 +1,43 @@
-// A working news-image-daily entry (Node 22, standard library only): its image is the entry.png beside this file, and
-// the program copies it to /output/entry.png. A starting point, not a winner: replace the image. The gate takes a
-// whole PNG or JPEG of at most 1 MiB and 1024 by 1024 pixels, and the judge sees exactly the bytes copied.
+// news-image-20261120 — entry program.
 //
-// Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
-//   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+// The image in this repository already is the entry: a front page summing
+// up Friday 20 November 2026. This program only carries it, byte for byte,
+// into the directory the grader reads. It touches no network, draws
+// nothing new, and changes nothing about the image, so running it twice
+// always produces the same bytes.
 
-import { copyFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-copyFileSync(new URL('./entry.png', import.meta.url), join(process.env.MAKEFUN_OUTPUT_DIR ?? '/output', 'entry.png'));
+// The repository root is the folder holding this file.
+const repoRoot = dirname(fileURLToPath(import.meta.url));
+const sourceImage = join(repoRoot, "entry.png");
+
+// The harness names its writable folder through the environment;
+// outside the sandbox it falls back to /output.
+const outputDir = process.env.MAKEFUN_OUTPUT_DIR || "/output";
+const outputImage = join(outputDir, "entry.png");
+
+function sha256Hex(path) {
+  return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+if (!existsSync(sourceImage)) {
+  throw new Error("entry image not found: " + sourceImage);
+}
+
+mkdirSync(outputDir, { recursive: true });
+copyFileSync(sourceImage, outputImage);
+
+// A copy must be exact: refuse to report success when the bytes differ.
+const sourceHash = sha256Hex(sourceImage);
+const outputHash = sha256Hex(outputImage);
+if (sourceHash !== outputHash) {
+  throw new Error(
+    "copy mismatch for " + outputImage + ": " + sourceHash + " != " + outputHash,
+  );
+}
+
+console.log("wrote " + outputImage + " sha256:" + outputHash);
